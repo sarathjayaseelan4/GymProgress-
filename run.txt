@@ -1,0 +1,7 @@
+npm install This reads the package.json and installs everything needed (React, Tailwind, Vite, etc.)
+npm run dev
+Start the Vite dev server
+
+Output a local URL (e.g. http://localhost:5173)
+
+Open it in your browser (or you can click the URL)
