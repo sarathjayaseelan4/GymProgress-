@@ -1,0 +1,1609 @@
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.Arrays;
+
+@Configuration
+@EnableWebSecurity
+
+Project Directory Structure
+```
+gym-progress-tracker/
+├── backend/
+│   ├── src/main/java/com/gymtracker/
+│   │   ├── GymTrackerApplication.java
+│   │   ├── config/
+│   │   │   ├── SecurityConfig.java
+│   │   │   ├── DatabaseConfig.java
+│   │   │   └── EmailConfig.java
+│   │   ├── controller/
+│   │   │   ├── AuthController.java
+│   │   │   ├── WorkoutController.java
+│   │   │   ├── ExerciseController.java
+│   │   │   └── AnalyticsController.java
+│   │   ├── service/
+│   │   │   ├── AuthService.java
+│   │   │   ├── WorkoutService.java
+│   │   │   ├── ExerciseService.java
+│   │   │   ├── AnalyticsService.java
+│   │   │   └── EmailService.java
+│   │   ├── repository/
+│   │   │   ├── UserRepository.java
+│   │   │   ├── WorkoutRepository.java
+│   │   │   ├── ExerciseRepository.java
+│   │   │   └── WorkoutExerciseRepository.java
+│   │   ├── model/
+│   │   │   ├── User.java
+│   │   │   ├── Workout.java
+│   │   │   ├── Exercise.java
+│   │   │   ├── WorkoutExercise.java
+│   │   │   └── Set.java
+│   │   ├── dto/
+│   │   │   ├── LoginRequest.java
+│   │   │   ├── WorkoutRequest.java
+│   │   │   ├── WorkoutResponse.java
+│   │   │   └── AnalyticsResponse.java
+│   │   └── utils/
+│   │       ├── JwtUtil.java
+│   │       └── ProgressCalculator.java
+│   ├── src/main/resources/
+│   │   ├── application.properties
+│   │   ├── application-dev.properties
+│   │   ├── application-prod.properties
+│   │   └── data.sql
+│   └── pom.xml
+├── frontend/
+│   ├── index.html
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── workout-log.html
+│   ├── analytics.html
+│   ├── css/
+│   │   ├── main.css
+│   │   ├── auth.css
+│   │   ├── dashboard.css
+│   │   └── responsive.css
+│   ├── js/
+│   │   ├── main.js
+│   │   ├── auth.js
+│   │   ├── workout.js
+│   │   ├── analytics.js
+│   │   └── api.js
+│   └── assets/
+│       ├── images/
+│       └── icons/
+├── docker-compose.yml
+├── Dockerfile
+└── README.md
+```
+
+## Implementation Files
+
+### 1. Backend Configuration Files
+
+#### pom.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+        <relativePath/>
+    </parent>
+    
+    <groupId>com.gymtracker</groupId>
+    <artifactId>gym-progress-tracker</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+#### application.properties
+```properties
+# Database Configuration
+spring.datasource.url=jdbc:mysql://localhost:3306/gym_tracker?createDatabaseIfNotExist=true
+spring.datasource.username=${DB_USERNAME:root}
+spring.datasource.password=${DB_PASSWORD:password}
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA Configuration
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+
+# Server Configuration
+server.port=8080
+server.servlet.context-path=/api
+
+# JWT Configuration
+jwt.secret=${JWT_SECRET:mySecretKey}
+jwt.expiration=86400000
+
+# Google OAuth Configuration
+spring.security.oauth2.client.registration.google.client-id=${GOOGLE_CLIENT_ID:your-google-client-id}
+spring.security.oauth2.client.registration.google.client-secret=${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+spring.security.oauth2.client.registration.google.scope=profile,email
+
+# Email Configuration
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=${EMAIL_USERNAME:your-email@gmail.com}
+spring.mail.password=${EMAIL_PASSWORD:your-app-password}
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+# CORS Configuration
+cors.allowed-origins=http://localhost:3000,http://localhost:8080
+```
+
+### 2. Model Classes
+
+#### User.java
+```java
+package com.gymtracker.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(unique = true, nullable = false)
+    private String email;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    private String profilePicture;
+    
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<Workout> workouts;
+    
+    // Constructors
+    public User() {}
+    
+    public User(String email, String name) {
+        this.email = email;
+        this.name = name;
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
+    
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    
+    public List<Workout> getWorkouts() { return workouts; }
+    public void setWorkouts(List<Workout> workouts) { this.workouts = workouts; }
+}
+```
+
+#### Workout.java
+```java
+package com.gymtracker.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "workouts")
+public class Workout {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+    
+    @Column(name = "workout_date", nullable = false)
+    private LocalDateTime workoutDate;
+    
+    private String notes;
+    
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+    
+    @OneToMany(mappedBy = "workout", cascade = CascadeType.ALL)
+    private List<WorkoutExercise> workoutExercises;
+    
+    // Constructors
+    public Workout() {}
+    
+    public Workout(User user, LocalDateTime workoutDate) {
+        this.user = user;
+        this.workoutDate = workoutDate;
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
+    
+    public LocalDateTime getWorkoutDate() { return workoutDate; }
+    public void setWorkoutDate(LocalDateTime workoutDate) { this.workoutDate = workoutDate; }
+    
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+    
+    public Integer getDurationMinutes() { return durationMinutes; }
+    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    
+    public List<WorkoutExercise> getWorkoutExercises() { return workoutExercises; }
+    public void setWorkoutExercises(List<WorkoutExercise> workoutExercises) { this.workoutExercises = workoutExercises; }
+}
+```
+
+#### Exercise.java
+```java
+package com.gymtracker.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "exercises")
+public class Exercise {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(name = "muscle_group")
+    private String muscleGroup;
+    
+    private String description;
+    
+    @Column(name = "equipment_needed")
+    private String equipmentNeeded;
+    
+    // Constructors
+    public Exercise() {}
+    
+    public Exercise(String name, String muscleGroup) {
+        this.name = name;
+        this.muscleGroup = muscleGroup;
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    
+    public String getMuscleGroup() { return muscleGroup; }
+    public void setMuscleGroup(String muscleGroup) { this.muscleGroup = muscleGroup; }
+    
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    
+    public String getEquipmentNeeded() { return equipmentNeeded; }
+    public void setEquipmentNeeded(String equipmentNeeded) { this.equipmentNeeded = equipmentNeeded; }
+}
+```
+
+#### WorkoutExercise.java
+```java
+package com.gymtracker.model;
+
+import jakarta.persistence.*;
+import java.util.List;
+
+@Entity
+@Table(name = "workout_exercises")
+public class WorkoutExercise {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workout_id", nullable = false)
+    private Workout workout;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercise_id", nullable = false)
+    private Exercise exercise;
+    
+    @OneToMany(mappedBy = "workoutExercise", cascade = CascadeType.ALL)
+    private List<Set> sets;
+    
+    private String notes;
+    
+    // Constructors
+    public WorkoutExercise() {}
+    
+    public WorkoutExercise(Workout workout, Exercise exercise) {
+        this.workout = workout;
+        this.exercise = exercise;
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public Workout getWorkout() { return workout; }
+    public void setWorkout(Workout workout) { this.workout = workout; }
+    
+    public Exercise getExercise() { return exercise; }
+    public void setExercise(Exercise exercise) { this.exercise = exercise; }
+    
+    public List<Set> getSets() { return sets; }
+    public void setSets(List<Set> sets) { this.sets = sets; }
+    
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+}
+```
+
+#### Set.java
+```java
+package com.gymtracker.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "sets")
+public class Set {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workout_exercise_id", nullable = false)
+    private WorkoutExercise workoutExercise;
+    
+    @Column(name = "set_number")
+    private Integer setNumber;
+    
+    private Integer reps;
+    
+    private Double weight;
+    
+    @Column(name = "rpe") // Rate of Perceived Exertion
+    private Integer rpe;
+    
+    @Column(name = "rest_seconds")
+    private Integer restSeconds;
+    
+    // Constructors
+    public Set() {}
+    
+    public Set(WorkoutExercise workoutExercise, Integer setNumber, Integer reps, Double weight) {
+        this.workoutExercise = workoutExercise;
+        this.setNumber = setNumber;
+        this.reps = reps;
+        this.weight = weight;
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public WorkoutExercise getWorkoutExercise() { return workoutExercise; }
+    public void setWorkoutExercise(WorkoutExercise workoutExercise) { this.workoutExercise = workoutExercise; }
+    
+    public Integer getSetNumber() { return setNumber; }
+    public void setSetNumber(Integer setNumber) { this.setNumber = setNumber; }
+    
+    public Integer getReps() { return reps; }
+    public void setReps(Integer reps) { this.reps = reps; }
+    
+    public Double getWeight() { return weight; }
+    public void setWeight(Double weight) { this.weight = weight; }
+    
+    public Integer getRpe() { return rpe; }
+    public void setRpe(Integer rpe) { this.rpe = rpe; }
+    
+    public Integer getRestSeconds() { return restSeconds; }
+    public void setRestSeconds(Integer restSeconds) { this.restSeconds = restSeconds; }
+}
+```
+
+### 3. Repository Interfaces
+
+#### UserRepository.java
+```java
+package com.gymtracker.repository;
+
+import com.gymtracker.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
+}
+```
+
+#### WorkoutRepository.java
+```java
+package com.gymtracker.repository;
+
+import com.gymtracker.model.Workout;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface WorkoutRepository extends JpaRepository<Workout, Long> {
+    Page<Workout> findByUserIdOrderByWorkoutDateDesc(Long userId, Pageable pageable);
+    
+    List<Workout> findByUserIdAndWorkoutDateBetween(Long userId, LocalDateTime start, LocalDateTime end);
+    
+    @Query("SELECT COUNT(w) FROM Workout w WHERE w.user.id = :userId AND w.workoutDate >= :date")
+    Long countWorkoutsSinceDate(@Param("userId") Long userId, @Param("date") LocalDateTime date);
+    
+    @Query("SELECT w FROM Workout w JOIN FETCH w.workoutExercises we JOIN FETCH we.sets WHERE w.user.id = :userId ORDER BY w.workoutDate DESC")
+    List<Workout> findWorkoutsWithExercisesAndSets(@Param("userId") Long userId);
+}
+```
+
+#### ExerciseRepository.java
+```java
+package com.gymtracker.repository;
+
+import com.gymtracker.model.Exercise;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
+    List<Exercise> findByMuscleGroupIgnoreCase(String muscleGroup);
+    Optional<Exercise> findByNameIgnoreCase(String name);
+    List<Exercise> findByNameContainingIgnoreCase(String name);
+}
+```
+
+#### WorkoutExerciseRepository.java
+```java
+package com.gymtracker.repository;
+
+import com.gymtracker.model.WorkoutExercise;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise, Long> {
+    @Query("SELECT we FROM WorkoutExercise we JOIN FETCH we.sets WHERE we.workout.user.id = :userId AND we.exercise.id = :exerciseId AND we.workout.workoutDate >= :sinceDate ORDER BY we.workout.workoutDate DESC")
+    List<WorkoutExercise> findUserExerciseHistory(@Param("userId") Long userId, @Param("exerciseId") Long exerciseId, @Param("sinceDate") LocalDateTime sinceDate);
+}
+```
+
+### 4. Service Layer
+
+#### AuthService.java
+```java
+package com.gymtracker.service;
+
+import com.gymtracker.model.User;
+import com.gymtracker.repository.UserRepository;
+import com.gymtracker.utils.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
+
+@Service
+public class AuthService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private JwtUtil jwtUtil;
+    
+    public String authenticateGoogleUser(String email, String name, String profilePicture) {
+        User user = userRepository.findByEmail(email)
+            .orElseGet(() -> createNewUser(email, name, profilePicture));
+        
+        return jwtUtil.generateToken(user.getEmail());
+    }
+    
+    private User createNewUser(String email, String name, String profilePicture) {
+        User newUser = new User(email, name);
+        newUser.setProfilePicture(profilePicture);
+        return userRepository.save(newUser);
+    }
+    
+    public Optional<User> getUserByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+    
+    public boolean validateToken(String token) {
+        return jwtUtil.validateToken(token);
+    }
+    
+    public String getEmailFromToken(String token) {
+        return jwtUtil.getEmailFromToken(token);
+    }
+}
+```
+
+#### WorkoutService.java
+```java
+package com.gymtracker.service;
+
+import com.gymtracker.dto.WorkoutRequest;
+import com.gymtracker.dto.WorkoutResponse;
+import com.gymtracker.model.*;
+import com.gymtracker.repository.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class WorkoutService {
+    
+    @Autowired
+    private WorkoutRepository workoutRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private ExerciseRepository exerciseRepository;
+    
+    public WorkoutResponse createWorkout(String userEmail, WorkoutRequest request) {
+        User user = userRepository.findByEmail(userEmail)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Workout workout = new Workout(user, LocalDateTime.now());
+        workout.setNotes(request.getNotes());
+        workout.setDurationMinutes(request.getDurationMinutes());
+        
+        // Save workout first
+        workout = workoutRepository.save(workout);
+        
+        // Process exercises and sets
+        List<WorkoutExercise> workoutExercises = request.getExercises().stream()
+            .map(exerciseReq -> createWorkoutExercise(workout, exerciseReq))
+            .collect(Collectors.toList());
+        
+        workout.setWorkoutExercises(workoutExercises);
+        workout = workoutRepository.save(workout);
+        
+        return convertToResponse(workout);
+    }
+    
+    private WorkoutExercise createWorkoutExercise(Workout workout, WorkoutRequest.ExerciseRequest exerciseReq) {
+        Exercise exercise = exerciseRepository.findById(exerciseReq.getExerciseId())
+            .orElseThrow(() -> new RuntimeException("Exercise not found"));
+        
+        WorkoutExercise workoutExercise = new WorkoutExercise(workout, exercise);
+        workoutExercise.setNotes(exerciseReq.getNotes());
+        
+        List<Set> sets = exerciseReq.getSets().stream()
+            .map(setReq -> createSet(workoutExercise, setReq))
+            .collect(Collectors.toList());
+        
+        workoutExercise.setSets(sets);
+        return workoutExercise;
+    }
+    
+    private Set createSet(WorkoutExercise workoutExercise, WorkoutRequest.SetRequest setReq) {
+        Set set = new Set(workoutExercise, setReq.getSetNumber(), setReq.getReps(), setReq.getWeight());
+        set.setRpe(setReq.getRpe());
+        set.setRestSeconds(setReq.getRestSeconds());
+        return set;
+    }
+    
+    public Page<WorkoutResponse> getUserWorkouts(String userEmail, Pageable pageable) {
+        User user = userRepository.findByEmail(userEmail)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        return workoutRepository.findByUserIdOrderByWorkoutDateDesc(user.getId(), pageable)
+            .map(this::convertToResponse);
+    }
+    
+    public WorkoutResponse getWorkoutById(Long workoutId, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Workout workout = workoutRepository.findById(workoutId)
+            .orElseThrow(() -> new RuntimeException("Workout not found"));
+        
+        if (!workout.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized access to workout");
+        }
+        
+        return convertToResponse(workout);
+    }
+    
+    private WorkoutResponse convertToResponse(Workout workout) {
+        WorkoutResponse response = new WorkoutResponse();
+        response.setId(workout.getId());
+        response.setWorkoutDate(workout.getWorkoutDate());
+        response.setNotes(workout.getNotes());
+        response.setDurationMinutes(workout.getDurationMinutes());
+        
+        List<WorkoutResponse.ExerciseResponse> exercises = workout.getWorkoutExercises().stream()
+            .map(this::convertExerciseToResponse)
+            .collect(Collectors.toList());
+        
+        response.setExercises(exercises);
+        return response;
+    }
+    
+    private WorkoutResponse.ExerciseResponse convertExerciseToResponse(WorkoutExercise we) {
+        WorkoutResponse.ExerciseResponse exerciseResponse = new WorkoutResponse.ExerciseResponse();
+        exerciseResponse.setExerciseId(we.getExercise().getId());
+        exerciseResponse.setExerciseName(we.getExercise().getName());
+        exerciseResponse.setMuscleGroup(we.getExercise().getMuscleGroup());
+        exerciseResponse.setNotes(we.getNotes());
+        
+        List<WorkoutResponse.SetResponse> sets = we.getSets().stream()
+            .map(this::convertSetToResponse)
+            .collect(Collectors.toList());
+        
+        exerciseResponse.setSets(sets);
+        return exerciseResponse;
+    }
+    
+    private WorkoutResponse.SetResponse convertSetToResponse(Set set) {
+        WorkoutResponse.SetResponse setResponse = new WorkoutResponse.SetResponse();
+        setResponse.setSetNumber(set.getSetNumber());
+        setResponse.setReps(set.getReps());
+        setResponse.setWeight(set.getWeight());
+        setResponse.setRpe(set.getRpe());
+        setResponse.setRestSeconds(set.getRestSeconds());
+        return setResponse;
+    }
+}
+```
+
+### 5. Controller Layer
+
+#### AuthController.java
+```java
+package com.gymtracker.controller;
+
+import com.gymtracker.dto.LoginRequest;
+import com.gymtracker.service.AuthService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/auth")
+@CrossOrigin(origins = "*")
+public class AuthController {
+    
+    @Autowired
+    private AuthService authService;
+    
+    @PostMapping("/google")
+    public ResponseEntity<?> authenticateGoogle(@RequestBody LoginRequest request) {
+        try {
+            String token = authService.authenticateGoogleUser(
+                request.getEmail(),
+                request.getName(),
+                request.getProfilePicture()
+            );
+            
+            return ResponseEntity.ok(Map.of(
+                "token", token,
+                "message", "Authentication successful"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Authentication failed: " + e.getMessage()
+            ));
+        }
+    }
+    
+    @PostMapping("/validate")
+    public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            boolean isValid = authService.validateToken(token);
+            
+            if (isValid) {
+                String email = authService.getEmailFromToken(token);
+                return ResponseEntity.ok(Map.of(
+                    "valid", true,
+                    "email", email
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of("valid", false));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Token validation failed"
+            ));
+        }
+    }
+}
+```
+
+#### WorkoutController.java
+```java
+package com.gymtracker.controller;
+
+import com.gymtracker.dto.WorkoutRequest;
+import com.gymtracker.dto.WorkoutResponse;
+import com.gymtracker.service.AuthService;
+import com.gymtracker.service.WorkoutService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/workouts")
+@CrossOrigin(origins = "*")
+public class WorkoutController {
+    
+    @Autowired
+    private WorkoutService workoutService;
+    
+    @Autowired
+    private AuthService authService;
+    
+    @PostMapping
+    public ResponseEntity<?> createWorkout(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody WorkoutRequest request) {
+        try {
+            String token = authHeader.substring(7);
+            String userEmail = authService.getEmailFromToken(token);
+            
+            WorkoutResponse response = workoutService.createWorkout(userEmail, request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error creating workout: " + e.getMessage());
+        }
+    }
+    
+    @GetMapping
+    public ResponseEntity<?> getUserWorkouts(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            String token = authHeader.substring(7);
+            String userEmail = authService.getEmailFromToken(token);
+            
+            Pageable pageable = PageRequest.of(page, size);
+            Page<WorkoutResponse> workouts = workoutService.getUserWorkouts(userEmail, pageable);
+            return ResponseEntity.ok(workouts);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching workouts: " + e.getMessage());
+        }
+    }
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getWorkout(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long id) {
+        try {
+            String token = authHeader.substring(7);
+            String userEmail = authService.getEmailFromToken(token);
+            
+            WorkoutResponse workout = workoutService.getWorkoutById(id, userEmail);
+            return ResponseEntity.ok(workout);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching workout: " + e.getMessage());
+        }
+    }
+}
+```
+
+#### ExerciseController.java
+```java
+package com.gymtracker.controller;
+
+import com.gymtracker.model.Exercise;
+import com.gymtracker.service.ExerciseService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/exercises")
+@CrossOrigin(origins = "*")
+public class ExerciseController {
+    
+    @Autowired
+    private ExerciseService exerciseService;
+    
+    @GetMapping
+    public ResponseEntity<List<Exercise>> getAllExercises() {
+        List<Exercise> exercises = exerciseService.getAllExercises();
+        return ResponseEntity.ok(exercises);
+    }
+    
+    @GetMapping("/muscle-group/{muscleGroup}")
+    public ResponseEntity<List<Exercise>> getExercisesByMuscleGroup(@PathVariable String muscleGroup) {
+        List<Exercise> exercises = exerciseService.getExercisesByMuscleGroup(muscleGroup);
+        return ResponseEntity.ok(exercises);
+    }
+    
+    @GetMapping("/search")
+    public ResponseEntity<List<Exercise>> searchExercises(@RequestParam String name) {
+        List<Exercise> exercises = exerciseService.searchExercisesByName(name);
+        return ResponseEntity.ok(exercises);
+    }
+}
+```
+
+#### AnalyticsController.java
+```java
+package com.gymtracker.controller;
+
+import com.gymtracker.dto.AnalyticsResponse;
+import com.gymtracker.service.AnalyticsService;
+import com.gymtracker.service.AuthService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/analytics")
+@CrossOrigin(origins = "*")
+public class AnalyticsController {
+    
+    @Autowired
+    private AnalyticsService analyticsService;
+    
+    @Autowired
+    private AuthService authService;
+    
+    @GetMapping
+    public ResponseEntity<?> getUserAnalytics(@RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.substring(7);
+            String userEmail = authService.getEmailFromToken(token);
+            
+            AnalyticsResponse analytics = analyticsService.generateUserAnalytics(userEmail);
+            return ResponseEntity.ok(analytics);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error generating analytics: " + e.getMessage());
+        }
+    }
+    
+    @GetMapping("/exercise/{exerciseId}")
+    public ResponseEntity<?> getExerciseProgress(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long exerciseId,
+            @RequestParam(defaultValue = "30") int days) {
+        try {
+            String token = authHeader.substring(7);
+            String userEmail = authService.getEmailFromToken(token);
+            
+            AnalyticsResponse.ExerciseProgress progress = analyticsService.getExerciseProgress(userEmail, exerciseId, days);
+            return ResponseEntity.ok(progress);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching exercise progress: " + e.getMessage());
+        }
+    }
+}
+```
+
+### 7. Utility Classes
+
+#### JwtUtil.java
+```java
+package com.gymtracker.utils;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import java.util.Date;
+import java.util.function.Function;
+
+@Component
+public class JwtUtil {
+    
+    @Value("${jwt.secret}")
+    private String secret;
+    
+    @Value("${jwt.expiration}")
+    private Long expiration;
+    
+    public String generateToken(String email) {
+        return Jwts.builder()
+                .setSubject(email)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(SignatureAlgorithm.HS512, secret)
+                .compact();
+    }
+    
+    public String getEmailFromToken(String token) {
+        return getClaimFromToken(token, Claims::getSubject);
+    }
+    
+    public Date getExpirationDateFromToken(String token) {
+        return getClaimFromToken(token, Claims::getExpiration);
+    }
+    
+    public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = getAllClaimsFromToken(token);
+        return claimsResolver.apply(claims);
+    }
+    
+    private Claims getAllClaimsFromToken(String token) {
+        return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
+    }
+    
+    private Boolean isTokenExpired(String token) {
+        final Date expiration = getExpirationDateFromToken(token);
+        return expiration.before(new Date());
+    }
+    
+    public Boolean validateToken(String token) {
+        try {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}
+```
+
+#### ProgressCalculator.java
+```java
+package com.gymtracker.utils;
+
+import com.gymtracker.dto.AnalyticsResponse;
+import com.gymtracker.model.WorkoutExercise;
+import com.gymtracker.model.Set;
+import org.springframework.stereotype.Component;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Component
+public class ProgressCalculator {
+    
+    public AnalyticsResponse.ExerciseProgress calculateExerciseProgress(List<WorkoutExercise> exerciseHistory) {
+        AnalyticsResponse.ExerciseProgress progress = new AnalyticsResponse.ExerciseProgress();
+        
+        if (exerciseHistory.isEmpty()) {
+            return progress;
+        }
+        
+        // Get exercise name
+        progress.setExerciseName(exerciseHistory.get(0).getExercise().getName());
+        
+        // Calculate total volume over time
+        Map<LocalDateTime, Double> volumeOverTime = exerciseHistory.stream()
+            .collect(Collectors.toMap(
+                we -> we.getWorkout().getWorkoutDate(),
+                this::calculateWorkoutExerciseVolume,
+                Double::sum
+            ));
+        
+        progress.setVolumeOverTime(volumeOverTime);
+        
+        // Calculate max weight progression
+        Map<LocalDateTime, Double> maxWeightOverTime = exerciseHistory.stream()
+            .collect(Collectors.toMap(
+                we -> we.getWorkout().getWorkoutDate(),
+                this::calculateMaxWeight
+            ));
+        
+        progress.setMaxWeightOverTime(maxWeightOverTime);
+        
+        // Calculate estimated 1RM progression
+        Map<LocalDateTime, Double> oneRMOverTime = exerciseHistory.stream()
+            .collect(Collectors.toMap(
+                we -> we.getWorkout().getWorkoutDate(),
+                this::calculateEstimatedOneRM
+            ));
+        
+        progress.setEstimatedOneRMOverTime(oneRMOverTime);
+        
+        return progress;
+    }
+    
+    private double calculateWorkoutExerciseVolume(WorkoutExercise we) {
+        return we.getSets().stream()
+            .mapToDouble(set -> set.getReps() * (set.getWeight() != null ? set.getWeight() : 0))
+            .sum();
+    }
+    
+    private double calculateMaxWeight(WorkoutExercise we) {
+        return we.getSets().stream()
+            .mapToDouble(set -> set.getWeight() != null ? set.getWeight() : 0)
+            .max()
+            .orElse(0.0);
+    }
+    
+    private double calculateEstimatedOneRM(WorkoutExercise we) {
+        // Using Epley formula: 1RM = weight * (1 + reps/30)
+        return we.getSets().stream()
+            .mapToDouble(set -> {
+                if (set.getWeight() != null && set.getReps() != null) {
+                    return set.getWeight() * (1 + set.getReps() / 30.0);
+                }
+                return 0.0;
+            })
+            .max()
+            .orElse(0.0);
+    }
+    
+    public double calculateWorkoutVolume(List<WorkoutExercise> workoutExercises) {
+        return workoutExercises.stream()
+            .mapToDouble(this::calculateWorkoutExerciseVolume)
+            .sum();
+    }
+    
+    public int calculateTotalSets(List<WorkoutExercise> workoutExercises) {
+        return workoutExercises.stream()
+            .mapToInt(we -> we.getSets().size())
+            .sum();
+    }
+    
+    public double calculateAverageRPE(List<WorkoutExercise> workoutExercises) {
+        List<Set> allSets = workoutExercises.stream()
+            .flatMap(we -> we.getSets().stream())
+            .filter(set -> set.getRpe() != null)
+            .collect(Collectors.toList());
+        
+        if (allSets.isEmpty()) {
+            return 0.0;
+        }
+        
+        return allSets.stream()
+            .mapToInt(Set::getRpe)
+            .average()
+            .orElse(0.0);
+    }
+}
+```
+
+### 8. DTO Classes
+
+#### LoginRequest.java
+```java
+package com.gymtracker.dto;
+
+public class LoginRequest {
+    private String email;
+    private String name;
+    private String profilePicture;
+    
+    // Constructors
+    public LoginRequest() {}
+    
+    public LoginRequest(String email, String name, String profilePicture) {
+        this.email = email;
+        this.name = name;
+        this.profilePicture = profilePicture;
+    }
+    
+    // Getters and Setters
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
+}
+```
+
+#### WorkoutRequest.java
+```java
+package com.gymtracker.dto;
+
+import java.util.List;
+
+public class WorkoutRequest {
+    private String notes;
+    private Integer durationMinutes;
+    private List<ExerciseRequest> exercises;
+    
+    // Getters and Setters
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+    
+    public Integer getDurationMinutes() { return durationMinutes; }
+    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    
+    public List<ExerciseRequest> getExercises() { return exercises; }
+    public void setExercises(List<ExerciseRequest> exercises) { this.exercises = exercises; }
+    
+    public static class ExerciseRequest {
+        private Long exerciseId;
+        private String notes;
+        private List<SetRequest> sets;
+        
+        // Getters and Setters
+        public Long getExerciseId() { return exerciseId; }
+        public void setExerciseId(Long exerciseId) { this.exerciseId = exerciseId; }
+        
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+        
+        public List<SetRequest> getSets() { return sets; }
+        public void setSets(List<SetRequest> sets) { this.sets = sets; }
+    }
+    
+    public static class SetRequest {
+        private Integer setNumber;
+        private Integer reps;
+        private Double weight;
+        private Integer rpe;
+        private Integer restSeconds;
+        
+        // Getters and Setters
+        public Integer getSetNumber() { return setNumber; }
+        public void setSetNumber(Integer setNumber) { this.setNumber = setNumber; }
+        
+        public Integer getReps() { return reps; }
+        public void setReps(Integer reps) { this.reps = reps; }
+        
+        public Double getWeight() { return weight; }
+        public void setWeight(Double weight) { this.weight = weight; }
+        
+        public Integer getRpe() { return rpe; }
+        public void setRpe(Integer rpe) { this.rpe = rpe; }
+        
+        public Integer getRestSeconds() { return restSeconds; }
+        public void setRestSeconds(Integer restSeconds) { this.restSeconds = restSeconds; }
+    }
+}
+```
+
+#### WorkoutResponse.java
+```java
+package com.gymtracker.dto;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public class WorkoutResponse {
+    private Long id;
+    private LocalDateTime workoutDate;
+    private String notes;
+    private Integer durationMinutes;
+    private List<ExerciseResponse> exercises;
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public LocalDateTime getWorkoutDate() { return workoutDate; }
+    public void setWorkoutDate(LocalDateTime workoutDate) { this.workoutDate = workoutDate; }
+    
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+    
+    public Integer getDurationMinutes() { return durationMinutes; }
+    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    
+    public List<ExerciseResponse> getExercises() { return exercises; }
+    public void setExercises(List<ExerciseResponse> exercises) { this.exercises = exercises; }
+    
+    public static class ExerciseResponse {
+        private Long exerciseId;
+        private String exerciseName;
+        private String muscleGroup;
+        private String notes;
+        private List<SetResponse> sets;
+        
+        // Getters and Setters
+        public Long getExerciseId() { return exerciseId; }
+        public void setExerciseId(Long exerciseId) { this.exerciseId = exerciseId; }
+        
+        public String getExerciseName() { return exerciseName; }
+        public void setExerciseName(String exerciseName) { this.exerciseName = exerciseName; }
+        
+        public String getMuscleGroup() { return muscleGroup; }
+        public void setMuscleGroup(String muscleGroup) { this.muscleGroup = muscleGroup; }
+        
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+        
+        public List<SetResponse> getSets() { return sets; }
+        public void setSets(List<SetResponse> sets) { this.sets = sets; }
+    }
+    
+    public static class SetResponse {
+        private Integer setNumber;
+        private Integer reps;
+        private Double weight;
+        private Integer rpe;
+        private Integer restSeconds;
+        
+        // Getters and Setters
+        public Integer getSetNumber() { return setNumber; }
+        public void setSetNumber(Integer setNumber) { this.setNumber = setNumber; }
+        
+        public Integer getReps() { return reps; }
+        public void setReps(Integer reps) { this.reps = reps; }
+        
+        public Double getWeight() { return weight; }
+        public void setWeight(Double weight) { this.weight = weight; }
+        
+        public Integer getRpe() { return rpe; }
+        public void setRpe(Integer rpe) { this.rpe = rpe; }
+        
+        public Integer getRestSeconds() { return restSeconds; }
+        public void setRestSeconds(Integer restSeconds) { this.restSeconds = restSeconds; }
+    }
+}
+```
+
+#### AnalyticsResponse.java
+```java
+package com.gymtracker.dto;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+
+public class AnalyticsResponse {
+    private Long userId;
+    private String userName;
+    private Long totalWorkouts;
+    private Long workoutsThisMonth;
+    private Long workoutsThisWeek;
+    private Double totalVolumeThisMonth;
+    private Map<String, Double> strengthProgress;
+    
+    // Getters and Setters
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+    
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    
+    public Long getTotalWorkouts() { return totalWorkouts; }
+    public void setTotalWorkouts(Long totalWorkouts) { this.totalWorkouts = totalWorkouts; }
+    
+    public Long getWorkoutsThisMonth() { return workoutsThisMonth; }
+    public void setWorkoutsThisMonth(Long workoutsThisMonth) { this.workoutsThisMonth = workoutsThisMonth; }
+    
+    public Long getWorkoutsThisWeek() { return workoutsThisWeek; }
+    public void setWorkoutsThisWeek(Long workoutsThisWeek) { this.workoutsThisWeek = workoutsThisWeek; }
+    
+    public Double getTotalVolumeThisMonth() { return totalVolumeThisMonth; }
+    public void setTotalVolumeThisMonth(Double totalVolumeThisMonth) { this.totalVolumeThisMonth = totalVolumeThisMonth; }
+    
+    public Map<String, Double> getStrengthProgress() { return strengthProgress; }
+    public void setStrengthProgress(Map<String, Double> strengthProgress) { this.strengthProgress = strengthProgress; }
+    
+    public static class ExerciseProgress {
+        private String exerciseName;
+        private Map<LocalDateTime, Double> volumeOverTime;
+        private Map<LocalDateTime, Double> maxWeightOverTime;
+        private Map<LocalDateTime, Double> estimatedOneRMOverTime;
+        
+        // Getters and Setters
+        public String getExerciseName() { return exerciseName; }
+        public void setExerciseName(String exerciseName) { this.exerciseName = exerciseName; }
+        
+        public Map<LocalDateTime, Double> getVolumeOverTime() { return volumeOverTime; }
+        public void setVolumeOverTime(Map<LocalDateTime, Double> volumeOverTime) { this.volumeOverTime = volumeOverTime; }
+        
+        public Map<LocalDateTime, Double> getMaxWeightOverTime() { return maxWeightOverTime; }
+        public void setMaxWeightOverTime(Map<LocalDateTime, Double> maxWeightOverTime) { this.maxWeightOverTime = maxWeightOverTime; }
+        
+        public Map<LocalDateTime, Double> getEstimatedOneRMOverTime() { return estimatedOneRMOverTime; }
+        public void setEstimatedOneRMOverTime(Map<LocalDateTime, Double> estimatedOneRMOverTime) { this.estimatedOneRMOverTime = estimatedOneRMOverTime; }
+    }
+}
+```
+
+### 9. Additional Service Classes
+
+#### ExerciseService.java
+```java
+package com.gymtracker.service;
+
+import com.gymtracker.model.Exercise;
+import com.gymtracker.repository.ExerciseRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+public class ExerciseService {
+    
+    @Autowired
+    private ExerciseRepository exerciseRepository;
+    
+    public List<Exercise> getAllExercises() {
+        return exerciseRepository.findAll();
+    }
+    
+    public List<Exercise> getExercisesByMuscleGroup(String muscleGroup) {
+        return exerciseRepository.findByMuscleGroupIgnoreCase(muscleGroup);
+    }
+    
+    public List<Exercise> searchExercisesByName(String name) {
+        return exerciseRepository.findByNameContainingIgnoreCase(name);
+    }
+    
+    public Exercise getExerciseById(Long id) {
+        return exerciseRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Exercise not found with id: " + id));
+    }
+}
+```
+
+#### AnalyticsService.java
+```java
+package com.gymtracker.service;
+
+import com.gymtracker.dto.AnalyticsResponse;
+import com.gymtracker.model.*;
+import com.gymtracker.repository.*;
+import com.gymtracker.utils.ProgressCalculator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class AnalyticsService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private WorkoutRepository workoutRepository;
+    
+    @Autowired
+    private WorkoutExerciseRepository workoutExerciseRepository;
+    
+    @Autowired
+    private ProgressCalculator progressCalculator;
+    
+    public AnalyticsResponse generateUserAnalytics(String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        
+        AnalyticsResponse analytics = new AnalyticsResponse();
+        analytics.setUserId(user.getId());
+        analytics.setUserName(user.getName());
+        
+        // Basic stats
+        Long totalWorkouts = workoutRepository.countWorkoutsSinceDate(user.getId(), user.getCreatedAt());
+        Long workoutsThisMonth = workoutRepository.countWorkoutsSinceDate(user.getId(), thirtyDaysAgo);
+        Long workoutsThisWeek = workoutRepository.countWorkoutsSinceDate(user.getId(), sevenDaysAgo);
+        
+        analytics.setTotalWorkouts(totalWorkouts);
+        analytics.setWorkoutsThisMonth(workoutsThisMonth);
+        analytics.setWorkoutsThisWeek(workoutsThisWeek);
+        
+        // Calculate total volume
+        List<Workout> recentWorkouts = workoutRepository.findByUserIdAndWorkoutDateBetween(
+            user.getId(), thirtyDaysAgo, LocalDateTime.now());
+        
+        double totalVolume = calculateTotalVolume(recentWorkouts);
+        analytics.setTotalVolumeThisMonth(totalVolume);
+        
+        // Calculate strength progress
+        Map<String, Double> strengthProgress = calculateStrengthProgress(user.getId(), thirtyDaysAgo);
+        analytics.setStrengthProgress(strengthProgress);
+        
+        return analytics;
+    }
+    
+    public AnalyticsResponse.ExerciseProgress getExerciseProgress(String userEmail, Long exerciseId, int days) {
+        User user = userRepository.findByEmail(userEmail)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        LocalDateTime sinceDate = LocalDateTime.now().minusDays(days);
+        
+        List<WorkoutExercise> exerciseHistory = workoutExerciseRepository
+            .findUserExerciseHistory(user.getId(), exerciseId, sinceDate);
+        
+        return progressCalculator.calculateExerciseProgress(exerciseHistory);
+    }
+    
+    private double calculateTotalVolume(List<Workout> workouts) {
+        return workouts.stream()
+            .flatMap(workout -> workout.getWorkoutExercises().stream())
+            .flatMap(we -> we.getSets().stream())
+            .mapToDouble(set -> set.getReps() * (set.getWeight() != null ? set.getWeight() : 0))
+            .sum();
+    }
+    
+    private Map<String, Double> calculateStrengthProgress(Long userId, LocalDateTime sinceDate) {
+        List<Workout> workouts = workoutRepository.findWorkoutsWithExercisesAndSets(userId);
+        
+        return workouts.stream()
+            .filter(w -> w.getWorkoutDate().isAfter(sinceDate))
+            .flatMap(w -> w.getWorkoutExercises().stream())
+            .collect(Collectors.groupingBy(
+                we -> we.getExercise().getName(),
+                Collectors.averagingDouble(we -> 
+                    we.getSets().stream()
+                        .mapToDouble(set -> set.getWeight() != null ? set.getWeight() : 0)
+                        .max()
+                        .orElse(0.0)
+                )
+            ));
+    }
+}
+```
+
+#### EmailService.java
+```java
+package com.gymtracker.service;
+
+import com.gymtracker.dto.AnalyticsResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import javax.mail.internet.MimeMessage;
+
+@Service
+public class EmailService {
+    
+    @Autowired
+    private JavaMailSender mailSender;
+    
+    @Value("${spring.mail.username}")
+    private String fromEmail;
+    
+    @Async
+    public void sendWeeklyProgressReport(String userEmail, String userName, AnalyticsResponse analytics) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(userEmail);
+            helper.setSubject("Your Weekly Fitness Progress Report");
+            
+            String emailContent = generateWeeklyReportHtml(userName, analytics);
+            helper.setText(emailContent, true);
+            
+            mailSender.send(message);
+        } catch (Exception e) {
+            // Log error
+            System.err.println("Failed to send email to: " + userEmail + ". Error: " + e.getMessage());
+        }
+    }
+    
+    private String generateWeeklyReportHtml(String userName, AnalyticsResponse analytics) {
+        return String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background-color: #4CAF50; color: white; padding: 20px; text-align: center;">
+                    <h1>Weekly Progress Report</h1>
+                    <p>Hello %s!</p>
+                </div>
+                
+                <div style="padding: 20px;">
+                    <h2>This Week's Summary</h2>
+                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <p><strong>Workouts Completed:</strong> %d</p>
+                        <p><strong>Total Volume:</strong> %.1f lbs</p>
+                        <p><strong>Total Workouts:</strong> %d</p>
+                    </div>
+                    
+                    <h3>Strength Progress</h3>
+                    <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px;">
+                        <p>Keep up the great work! Your consistency is paying off.</p>
+                        <p>Remember: Progressive overload is key to continued gains.</p>
+                    </div>
+                    
+                    <div style="margin-top: 30px; text-align: center;">
+                        <p style="color: #666;">Keep pushing towards your fitness goals!</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """, 
+            userName, 
+            analytics.getWorkoutsThisWeek(),
+            analytics.getTotalVolumeThisMonth(),
+            analytics.getTotalWorkouts()
+        );
+    }
+}
